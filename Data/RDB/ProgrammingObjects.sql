@@ -1,5 +1,5 @@
-select * 
-from Room
-where Whiteboard = 1
 
+select * from AppUser;
+select * from Room;
+select * from Reservation;
 select * from RoomAvailability;
