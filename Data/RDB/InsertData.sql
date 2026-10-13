@@ -1,64 +1,54 @@
-
-go
--- AppUser (5 rows)
-insert into AppUser (Email, Password) values
-('jak00049@mix.wvu.edu', 'Passw0rd!1'),
-('srh00041@mix.wvu.edu', 'Passw0rd!2'),
-('cc00117@mix.wvu.edu', 'Passw0rd!3'),
-('lb00098@mix.wvu.edu', 'Passw0rd!4'),
-('sturner@mail.wvu.edu', 'Passw0rd!5');
+insert into Room (RoomNumber, Floor, Seats, Whiteboard) values
+('REH 4213', 4, 4, 1),
+('REH 4225', 4, 6, 0),
+('REH 5213', 5, 4, 1),
+('REH 5225', 5, 6, 0);
 
 go
 
--- Room (5 rows)
-insert into Room (RoomNumber, Floor, Seats, Whiteboard, CurrentStatus) values
-('101', 1, 4, 1, 'Available'),
-('102', 1, 6, 0, 'Available'),
-('201', 2, 8, 1, 'In use'),
-('202', 2, 4, 0, 'Available'),
-('301', 3, 10, 1, 'Available');
+insert into Sensor (SensorName, TransmitterName, RoomID) values
+('LD2410C', 'ESP32-S3-WROOM-1', 1),
+('LD2410C', 'ESP32-S3-WROOM-1', 2),
+('LD2410C', 'ESP32-S3-WROOM-1', 3),
+('LD2410C', 'ESP32-S3-WROOM-1', 4);
+
 
 go
 
--- Reservation (10 rows)
-insert into Reservation (AppUserID, ReservationDateTime, CheckInDateTime, CheckOutDateTime, TotalTime, ReservationStatus) values
-(1, '2026-09-10 10:00', '2026-09-10 10:02', '2026-09-10 10:58', 56, 'Completed'),
-(2, '2026-09-10 13:00', null, null, null, 'Confirmed'),
-(3, '2026-09-11 09:00', '2026-09-11 09:00', '2026-09-11 09:59', 59, 'Completed'),
-(1, '2026-09-11 15:00', null, null, null, 'Cancelled'),
-(2, '2026-09-12 11:00', null, null, null, 'Confirmed'),
-(1, '2026-09-12 14:00', null, null, null, 'Cancelled'),
-(4, '2026-09-13 08:00', '2026-09-13 08:03', '2026-09-13 09:00', 57, 'Completed'),
-(3, '2026-09-13 16:00', null, null, null, 'Confirmed'),
-(5, '2026-09-14 10:00', null, null, null, 'Confirmed'),
-(1, '2026-09-14 12:00', null, null, null, 'Confirmed');
+insert into AppUser (FirstName, LastName, AppUserEmail, AppUserPassword, AppUserRole) values
+('Alice', 'Smith', 'alice.smith@school.edu', 'hashed_password_1', 'Admin'),
+('Bob', 'Johnson', 'bob.johnson@school.edu', 'hashed_password_2', 'User'),
+('Charlie', 'Brown', 'charlie.brown@school.edu', 'hashed_password_3', 'User'),
+('David', 'Williams', 'david.williams@school.edu', 'hashed_password_4', 'User');
+
 
 go
 
--- RoomAvailability (25 rows -- 5 slots per room)
-insert into RoomAvailability (RoomID, ReservationID, AvailableDate, AvailableStartTime, AvailableEndTime, AvailabilityStatus) values
-(1, 1, '2026-09-10', '10:00', '11:00', 'Booked'),
-(1, null, '2026-09-10', '11:00', '12:00', 'Available'),
-(1, 6, '2026-09-12', '14:00', '15:00', 'Booked'),
-(1, null, '2026-09-13', '09:00', '10:00', 'Available'),
-(1, null, '2026-09-14', '13:00', '14:00', 'Available'),
-(2, 2, '2026-09-10', '13:00', '14:00', 'Booked'),
-(2, 7, '2026-09-13', '08:00', '09:00', 'Booked'),
-(2, null, '2026-09-10', '14:00', '15:00', 'Available'),
-(2, null, '2026-09-11', '10:00', '11:00', 'Available'),
-(2, null, '2026-09-14', '15:00', '16:00', 'Available'),
-(3, 3, '2026-09-11', '09:00', '10:00', 'Booked'),
-(3, 8, '2026-09-13', '16:00', '17:00', 'Booked'),
-(3, null, '2026-09-11', '10:00', '11:00', 'Available'),
-(3, null, '2026-09-12', '09:00', '10:00', 'Available'),
-(3, null, '2026-09-13', '11:00', '12:00', 'Available'),
-(4, 4, '2026-09-11', '15:00', '16:00', 'Booked'),
-(4, 9, '2026-09-14', '10:00', '11:00', 'Booked'),
-(4, null, '2026-09-10', '09:00', '10:00', 'Available'),
-(4, null, '2026-09-12', '13:00', '14:00', 'Available'),
-(4, null, '2026-09-13', '14:00', '15:00', 'Available'),
-(5, 5, '2026-09-12', '11:00', '12:00', 'Booked'),
-(5, 10, '2026-09-14', '12:00', '13:00', 'Booked'),
-(5, null, '2026-09-10', '08:00', '09:00', 'Available'),
-(5, null, '2026-09-11', '16:00', '17:00', 'Available'),
-(5, null, '2026-09-13', '10:00', '11:00', 'Available');
+-- generate 15-minute RoomAvailability slots from 8 AM to 8 PM on current date for every room
+declare @AvailableDate date = getdate();
+declare @SlotStart time;
+declare @RoomID int;
+
+declare room_cursor cursor for select RoomID from Room;
+open room_cursor;
+fetch next from room_cursor into @RoomID;
+
+while @@FETCH_STATUS = 0
+begin
+    set @SlotStart = '08:00:00';
+    while @SlotStart < '20:00:00'
+    begin
+        insert into RoomAvailability (RoomID, AvailableDate, StartTime, EndTime, AvailabilityStatus)
+        values (@RoomID, @AvailableDate, @SlotStart, dateadd(minute, 15, @SlotStart), 'Available');
+
+        set @SlotStart = dateadd(minute, 15, @SlotStart);
+    end
+    fetch next from room_cursor into @RoomID;
+end
+
+close room_cursor;
+deallocate room_cursor;
+
+go
+
+select * from AppUser;
