@@ -24,13 +24,15 @@ go
 
 CREATE TABLE Sensor (
     SensorID     int identity(1,1),
+    MacAddress   nvarchar(17), -- MAC address format: '00:1A:2B:3C:4D:5E'
     SensorName       nvarchar(50),   -- e.g. 'LD2410C'
     TransmitterName  nvarchar(50),   -- e.g. 'ESP32-S3-WROOM-1'
-    DateInstalled     datetime2 NOT NULL DEFAULT GETDATE(),
-    DateRemoved       datetime2 NULL,
+    DateInstalled     date NOT NULL DEFAULT getdate(),
+    DateRemoved       date NULL,
     RoomID     INT,    -- which room this device watches
     constraint PK_Sensor primary key (SensorID),
-    constraint FK_Sensor_Room foreign key (RoomID) references Room(RoomID)
+    constraint FK_Sensor_Room foreign key (RoomID) references Room(RoomID),
+    constraint UQ_Sensor_MacAddress unique (MacAddress)
 );
 
 go
@@ -55,7 +57,8 @@ create table AppUser
     LastName nvarchar(50) not null,
     AppUserEmail nvarchar(100) not null unique,
     AppUserPassword nvarchar(200) not null,
-    AppUserRole nvarchar(50) not null default 'User',
+    AppUserRole nvarchar(20) not null default 'User', -- 'Admin' or 'User'
+    constraint CK_AppUser_Role check (AppUserRole in ('Admin', 'User')),
     constraint PK_AppUser primary key (AppUserID)
 );
 
@@ -68,12 +71,13 @@ create table Reservation
     ReservationDateTime datetime2 not null default getdate(), -- when the reservation was made
     CheckInDateTime datetime2 null,
     CheckOutDateTime datetime2 null,
-    TotalTime as datediff(minute, CheckInDateTime, CheckOutDateTime), -- minutes, computed
+    TotalTimeReserved int NOT NULL DEFAULT 0, -- total reserved time -- as datediff(minute, CheckInDateTime, CheckOutDateTime), -- minutes, computed
     ReservationStatus nvarchar(20) not null default 'Reserved',
     constraint PK_Reservation primary key (ReservationID),
     constraint CK_Reservation_Status check (ReservationStatus in ('Reserved', 'CheckedIn', 'CheckedOut', 'Cancelled')),
     constraint FK_Reservation_AppUser foreign key (AppUserID) references AppUser(AppUserID),
-    constraint CK_Reservation_CheckOutAfterCheckIn check (CheckOutDateTime is null or CheckOutDateTime >= CheckInDateTime)
+    constraint CK_Reservation_CheckOutAfterCheckIn check (CheckOutDateTime is null or CheckOutDateTime >= CheckInDateTime),
+    constraint CK_Reservation_TotalTime check (TotalTimeReserved <= 120) -- maximum 2 hours
 );
 
 go

@@ -6,14 +6,16 @@ insert into Room (RoomNumber, Floor, Seats, Whiteboard) values
 
 go
 
-insert into Sensor (SensorName, TransmitterName, RoomID) values
-('LD2410C', 'ESP32-S3-WROOM-1', 1),
-('LD2410C', 'ESP32-S3-WROOM-1', 2),
-('LD2410C', 'ESP32-S3-WROOM-1', 3),
-('LD2410C', 'ESP32-S3-WROOM-1', 4);
+insert into Sensor (MacAddress, SensorName, TransmitterName, RoomID) values
+('00:1A:2B:3C:4D:01', 'LD2410C', 'ESP32-S3-WROOM-1', 1),
+('00:1A:2B:3C:4D:02', 'LD2410C', 'ESP32-S3-WROOM-1', 2),
+('00:1A:2B:3C:4D:03', 'LD2410C', 'ESP32-S3-WROOM-1', 3),
+('00:1A:2B:3C:4D:04', 'LD2410C', 'ESP32-S3-WROOM-1', 4);
+
 
 
 go
+
 
 insert into AppUser (FirstName, LastName, AppUserEmail, AppUserPassword, AppUserRole) values
 ('Alice', 'Smith', 'alice.smith@school.edu', 'hashed_password_1', 'Admin'),
@@ -24,31 +26,12 @@ insert into AppUser (FirstName, LastName, AppUserEmail, AppUserPassword, AppUser
 
 go
 
--- generate 15-minute RoomAvailability slots from 8 AM to 8 PM on current date for every room
-declare @AvailableDate date = getdate();
-declare @SlotStart time;
-declare @RoomID int;
 
-declare room_cursor cursor for select RoomID from Room;
-open room_cursor;
-fetch next from room_cursor into @RoomID;
 
-while @@FETCH_STATUS = 0
-begin
-    set @SlotStart = '08:00:00';
-    while @SlotStart < '20:00:00'
-    begin
-        insert into RoomAvailability (RoomID, AvailableDate, StartTime, EndTime, AvailabilityStatus)
-        values (@RoomID, @AvailableDate, @SlotStart, dateadd(minute, 15, @SlotStart), 'Available');
 
-        set @SlotStart = dateadd(minute, 15, @SlotStart);
-    end
-    fetch next from room_cursor into @RoomID;
-end
-
-close room_cursor;
-deallocate room_cursor;
-
-go
-
-select * from AppUser;
+/*
+declare @currentDate date = getdate();
+print @currentDate;
+execute procCreateRoomAvailabilityForOneDay @currentDate;
+select * from RoomAvailability;
+*/
