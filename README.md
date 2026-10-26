@@ -1,4 +1,4 @@
-# RoomRec — Study Room Reservation System
+# StudyRoomSnifffer — Study Room Reservation System
 
 A SQL Server database for reserving campus study rooms and tracking whether they're occupied in real time. Users book rooms in 15-minute blocks, and presence sensors in each room log people entering and leaving, so the database always knows each room's current status.
 
