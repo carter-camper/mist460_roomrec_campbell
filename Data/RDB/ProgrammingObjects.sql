@@ -1,85 +1,62 @@
-/*
-select * from AppUser;
-select * from Room;
-select * from Reservation;
-select * from RoomAvailability;
-select * from Sensor;
-select * from SensorLog;
-execute procRecordEvent '00:1A:2B:3C:4D:01', 'Enter';
-execute procCreateRoomAvailabilityBetweenDates '2026-10-19', '2026-10-22';
-execute procCreateReservation 1, 1, '2026-10-28', '10:00', '11:00';
+if OBJECT_ID('dbo.procRecordEvent', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.procRecordEvent;
 
-*/
+if OBJECT_ID('dbo.trgUpdateRoomOccupancyStatus', 'TR') IS NOT NULL
+    DROP TRIGGER dbo.trgUpdateRoomOccupancyStatus;
 
+if OBJECT_ID('dbo.procUpdateRoomOccupancyStatus', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procUpdateRoomOccupancyStatus;
 
+if OBJECT_ID('dbo.procGetOccupancyStatusForAllRooms', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procGetOccupancyStatusForAllRooms;
 
-if OBJECT_ID('procRecordEvent', 'P') is not null
-    drop procedure procRecordEvent;
+if OBJECT_ID('dbo.procCreateRoomAvailabilityForOneDay', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procCreateRoomAvailabilityForOneDay;
 
-if OBJECT_ID('trgUpdateRoomStatus', 'TR') is not null
-    drop trigger trgUpdateRoomStatus;
+if OBJECT_ID('dbo.procCreateRoomAvailabilityBetweenDates', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procCreateRoomAvailabilityBetweenDates;
 
-go
-create or alter procedure procRecordEvent
-    @MacAddress nvarchar(17),
-    @EventType nvarchar(5)
-as
-BEGIN
-    declare @SensorID int;
-    select @SensorID = SensorID from Sensor where MacAddress = @MacAddress;
+if OBJECT_ID('dbo.procMakeReservation', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procMakeReservation;
 
-    insert into SensorLog (SensorID, EventType, EventDateTime) values (
-        @SensorID,
-        @EventType,
-        SYSDATETIMEOFFSET() at time zone 'Eastern Standard Time'
-    );
+if OBJECT_ID('dbo.procAddReservationDetails', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procAddReservationDetails;
 
+if Object_ID('dbo.procGetUserReservations', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procGetUserReservations;
 
-END
+if Object_ID('dbo.procGetReservationDetails', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procGetReservationDetails;
 
+if OBJECT_ID('dbo.procCancelReservation', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procCancelReservation;
 
-go
+if OBJECT_ID('dbo.trgUpdateRoomReservationAvailabilityOnCancel', 'TR') IS NOT NULL
+	DROP TRIGGER dbo.trgUpdateRoomReservationAvailabilityOnCancel;
 
-create or alter trigger trgUpdateRoomStatus
-on SensorLog
-after INSERT
-AS
-BEGIN
+if OBJECT_ID('dbo.procCheckIn', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procCheckIn;
 
-    declare @EventType NVARCHAR(10), @RoomID int
-    select @EventType = i.EventType, @RoomID = s.RoomID
-    from inserted i
-    inner join Sensor s on i.sensorid = s.sensorid
+if OBJECT_ID('dbo.procCheckOut', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procCheckOut;
 
-    -- trigger action
-    if (@EventType = 'Enter')
-    begin
-        execute procUpdateRoomStatus @RoomID, 'Occupied'
-    end
-    else if (@EventType = 'Exit')
-    begin
-        execute procUpdateRoomStatus @RoomID, 'Available'
-    end
+if Object_ID('dbo.procCheckRoomAvailability', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procCheckRoomAvailability;
 
+if Object_ID('dbo.procRegisterUser', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procRegisterUser;
 
-end
+if Object_ID('dbo.procAuthenticateUser', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procAuthenticateUser;
+
+if Object_ID('dbo.procGetReservationUsage', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procGetReservationUsage;
+
+if Object_ID('dbo.procGetSensorUsage', 'P') IS NOT NULL
+	DROP PROCEDURE dbo.procGetSensorUsage;
 
 go
 
-create or alter procedure procUpdateRoomStatus
-    @RoomID int,
-    @EventType NVARCHAR(10)
-as
-BEGIN
-    update Room
-    set CurrentStatus = @EventType
-    where RoomID = @RoomID
-end;
-
-
-go
-
--- generate 15-minute RoomAvailability slots from 8 AM to 8 PM on a given date for every room
 create or alter PROCEDURE procCreateRoomAvailabilityForOneDay
     @CurrentDate date
 as
@@ -98,7 +75,7 @@ begin
         set @SlotStart = '08:00:00';
         while @SlotStart < '20:00:00' -- loop through each 15-minute slot (8:00, 8:15, 8:30, ..., 19:45)
         begin
-            insert into RoomAvailability (RoomID, AvailableDate, StartTime, EndTime, AvailabilityStatus)
+            insert into RoomAvailability (RoomID, AvailableDate, StartTime, EndTime, RoomReservationAvailabilityStatus)
             values (@RoomID, @AvailableDate, @SlotStart, dateadd(minute, 15, @SlotStart), 'Available');
 
             set @SlotStart = dateadd(minute, 15, @SlotStart);
@@ -108,28 +85,18 @@ begin
     end
 
 end;
+
+/*
+declare @currentDate date = getdate();
+print @currentDate;
+execute procCreateRoomAvailabilityForOneDay @currentDate;
+select * from RoomAvailability;
+*/
+
 go
 
-GO
-
--- Create room availability for the next 7 days
-create or alter PROCEDURE procCreateRoomAvailabilityForNext7Days
-AS
-begin
-    declare @numberOfDays int = 0;
-    declare @currentDate date = getdate(); -- dateadd(day, 1, getdate()); -- start from tomorrow
-    while @numberOfDays < 7
-    begin
-        execute procCreateRoomAvailabilityForOneDay @currentDate;
-        set @numberOfDays = @numberOfDays + 1;
-        set @currentDate = dateadd(day, 1, @currentDate);
-    end
-end
--- execute procCreateRoomAvailabilityForNext7Days;
-
-GO
--- create room avail for between 2 dates
-
+-- Create room availability for between the specified start and end dates
+-- create or alter PROCEDURE procCreateRoomAvailabilityBetweenDates
 
 create or alter PROCEDURE procCreateRoomAvailabilityBetweenDates
     @StartDate date,
@@ -148,151 +115,83 @@ begin
         set @currentDate = dateadd(day, 1, @currentDate);
     end
 end
+-- execute procCreateRoomAvailabilityBetweenDates '2026-11-11', '2026-11-14';
+-- select * from RoomAvailability;
 
--- execute procCreateRoomAvailabilityBetweenDates '2026-10-19', '2026-10-22';
-
-
-go
-
--- reserve a room for a block of consecutive 15-minute slots (max 2 hours)
-create or alter procedure procCreateReservation
-    @AppUserID int,
-    @RoomID int,
-    @ReservationDate date,
-    @StartTime time,
-    @EndTime time
-as
-begin
-    set xact_abort on; -- any error rolls back the whole reservation
-
-    declare @Minutes int = datediff(minute, @StartTime, @EndTime);
-    declare @Now datetime2 = sysdatetimeoffset() at time zone 'Eastern Standard Time';
-
-    if @Minutes not between 15 and 120
-        throw 50001, 'Reservation must be between 15 minutes and 2 hours.', 1;
-
-    if cast(@ReservationDate as datetime) + cast(@StartTime as datetime) < @Now
-        throw 50003, 'Cannot reserve a time in the past.', 1;
-
-    -- a user can't hold two active reservations that overlap (can't be in two rooms at once)
-    if exists (
-        select 1
-        from Reservation r
-        inner join RoomAvailability ra on r.ReservationID = ra.ReservationID
-        where r.AppUserID = @AppUserID
-          and r.ReservationStatus in ('Reserved', 'CheckedIn')
-          and ra.AvailableDate = @ReservationDate
-          and ra.StartTime < @EndTime
-          and ra.EndTime > @StartTime
-    )
-        throw 50004, 'You already have a reservation during this time.', 1;
-
-    begin transaction;
-
-    insert into Reservation (AppUserID, ReservationDateTime, TotalTimeReserved) values (@AppUserID, @Now, @Minutes);
-    declare @ReservationID int = scope_identity();
-
-    -- claim only slots that are still open; the row locks keep two users from grabbing the same slot
-    -- trgUpdateRoomAvailabilityOnReservation marks the claimed slots 'Reserved'
-    update RoomAvailability
-    set ReservationID = @ReservationID
-    where RoomID = @RoomID
-      and AvailableDate = @ReservationDate
-      and StartTime >= @StartTime
-      and EndTime <= @EndTime
-      and AvailabilityStatus = 'Available';
-
-    -- every slot in the range must have been claimed (catches taken slots, unaligned times, outside hours)
-    if @@ROWCOUNT <> @Minutes / 15
-    begin
-        rollback transaction;
-        throw 50002, 'One or more requested time slots are not available.', 1;
-    end
-
-    commit transaction;
-
-    select @ReservationID as ReservationID;
-end
 
 go
 
--- keep AvailabilityStatus in sync with ReservationID: linked slot = 'Reserved', unlinked slot = 'Available'
--- a manual edit to AvailabilityStatus is overwritten, so the two columns can never disagree
-create or alter trigger trgUpdateRoomAvailabilityOnReservation
-on RoomAvailability
-after update
+create or alter procedure procRecordEvent
+	@MicrocontrollerMacAddress nvarchar(17),
+    @EventType nvarchar(5)
 as
-begin
-    if not (update(ReservationID) or update(AvailabilityStatus)) return;
+begin	
+	declare @SensorNodeID int;
 
-    update ra
-    set AvailabilityStatus = case when i.ReservationID is null then 'Available' else 'Reserved' end
-    from RoomAvailability ra
-    inner join inserted i on ra.RoomAvailabilityID = i.RoomAvailabilityID;
-end
+	select @SensorNodeID = SensorNodeID 
+	from SensorNode where MicrocontrollerMacAddress = @MicrocontrollerMacAddress;
 
-go
+	insert into SensorLog (SensorNodeID, EventType, EventDateTime)
+	values (@SensorNodeID, @EventType, SYSDATETIMEOFFSET() AT TIME ZONE 'Eastern Standard Time' );
 
--- cancel a user's upcoming reservation and free its slots; the reservation row is kept for history
-create or alter procedure procCancelReservation
-    @ReservationID int,
-    @AppUserID int
-as
-begin
-    set xact_abort on;
-
-    begin transaction;
-
-    -- only the owner can cancel, and only before check-in
-    update Reservation
-    set ReservationStatus = 'Cancelled'
-    where ReservationID = @ReservationID
-      and AppUserID = @AppUserID
-      and ReservationStatus = 'Reserved';
-
-    if @@ROWCOUNT = 0
-    begin
-        rollback transaction;
-        throw 50005, 'Reservation not found or can no longer be cancelled.', 1;
-    end
-
-    -- trgUpdateRoomAvailabilityOnReservation marks the freed slots 'Available'
-    update RoomAvailability
-    set ReservationID = null
-    where ReservationID = @ReservationID;
-
-    commit transaction;
-end
+end;
 
 /*
--- 1. make the reservation (10:00–11:00 = 4 slots)
-execute procCreateReservation 2, 1, '2026-10-28', '10:00', '11:00';
+select * from SensorNode;
+select * from SensorLog order by EventDateTime desc;
+select * from Room;
 
--- 2. the new reservation (TotalTimeReserved should be 60, status 'Reserved')
-select * from Reservation;
+execute procRecordEvent '58:E6:C5:69:93:30', 'Enter'; //1
 
--- 3. the claimed slots: 10:00, 10:15, 10:30, 10:45 should have the ReservationID and 'Reserved'
-select * from RoomAvailability
-where RoomID = 1 and AvailableDate = '2026-10-28' and StartTime between '09:45' and '11:00'
-order by StartTime;
-
-execute procCreateRoomAvailabilityBetweenDates '2026-10-27', '2026-10-30';
-
-execute procCreateReservation 2, 1, '2026-10-20', '10:00', '11:00'; -- past: error 50003
-execute procCreateReservation 2, 1, '2026-10-28', '10:00', '11:00'; -- succeeds
-execute procCreateReservation 2, 2, '2026-10-28', '10:30', '11:30'; -- same user, other room, overlaps: error 50004
-update RoomAvailability set AvailabilityStatus = 'Available' where ReservationID is not null; -- the trigger sets it back to 'Reserved'
-
-
-execute procCreateReservation 2, 1, '2026-10-28', '13:00', '14:00'; -- note the ReservationID it returns
-execute procCancelReservation 4, 3; -- wrong user: error 50005
-execute procCancelReservation 4, 2; -- succeeds
-execute procCancelReservation 4, 2; -- already cancelled: error 50005
-
-select * from Reservation where ReservationID = 4; -- status 'Cancelled'
-select * from RoomAvailability where RoomID = 1 and AvailableDate = '2026-10-28' and StartTime between '13:00' and '13:45'; -- 'Available', ReservationID null
-
-
+execute procRecordEvent '58:E6:C5:73:31:74', 'Exit'; //2
 */
 
+go
+
+create or alter PROCEDURE procUpdateRoomOccupancyStatus
+	@RoomID int,
+	@RoomOccupancyStatus nvarchar(20)
+AS
+begin
+		update Room
+		set RoomOccupancyStatus = @RoomOccupancyStatus
+		where RoomID = @RoomID
+end;
+
+go
+
+create or alter trigger trgUpdateRoomOccupancyStatus
+on SensorLog
+after insert
+as
+begin
+
+	declare @EventType nvarchar(5), @RoomID int
+
+	select @EventType = I.EventType, @RoomID = S.RoomID
+	from Inserted I inner join SensorNode S
+		on I.SensorNodeID = S.SensorNodeID;
+
+	-- trigger action
+	if (@EventType = 'Enter')
+	begin
+		execute procUpdateRoomOccupancyStatus @RoomID, 'Occupied'; -- 'Enter';
+	end
+	else if (@EventType = 'Exit')
+	begin
+		execute procUpdateRoomOccupancyStatus @RoomID, 'Vacant'; -- 'Exit';
+	end
+end
+
+go
+
+-- execute procUpdateRoomOccupancyStatus 1, 'Enter';
+
+create or alter PROCEDURE procGetOccupancyStatusForAllRooms
+AS
+begin
+	select RoomID, RoomOccupancyStatus
+	from Room;
+end;
+-- execute procGetOccupancyStatusForAllRooms;
 
